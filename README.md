@@ -55,3 +55,15 @@ sh scripts/test.sh
 ```
 请注意调整/dia-pangu/src/test.py中的模型路径及/dia-pangu/src/Dataset/dataset_test.py中的数据集路径。
  
+## Dia-Pangu-pruning
+以基于盘古大模型多模态医学影像与文本增量与推理项目作为验证指标的pangu剪枝技术研究，对pangu大语言模型尝试了不同剪枝率的剪枝
+### 代码结构
+剪枝部分包含敏感性分析，实际剪枝工具以及剪枝后测试工具
+#### 敏感性分析工具代码位于/dia-pangu-pruning/sensitivity-analyse中，核心代码包括：
+layer_mask.py为层屏蔽工具，通过将特定投影层（Q/K/V）的输出置零，动态屏蔽 Transformer 各注意力层。
+
+layer_sensitivity_scan.py为实际敏感性分析工具，功能如下：
+1.建立基线：在未修改模型的情况下，记录所有测试提示词的输出 logits
+2.逐层屏蔽：依次屏蔽每一层的注意力机制（Q/V 或仅 V）
+3.计算偏差：使用 log-probability distance 度量屏蔽前后输出的差异
+4.生成报告-csv格式结果：输出每层的平均敏感度分数和标准差
