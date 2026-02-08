@@ -2,7 +2,7 @@
 基于盘古大模型多模态医学影像与文本增量与推理项目
 ### 模型结构
 
-![Project-structure-diagram](Fig/project-structure-diagram.png)
+![Project-structure-diagram](Fig/Project-structure-diagram.png)
 
 本模型的LLM部分使用开源的openpangu_7b，Diagnostic Text Generation部分采用[Dia-LLaMA](https://github.com/zhi-xuan-chen/Dia-LLaMA)开源的模型，数据集采用开源数据集[CTRG](https://github.com/tangyuhao2016/CTRG)中的CTRG-Chest-548K部分。本项目主要以openpangu_7b为核心，融合Dia-LLaMA的方法从而构建基于盘古大模型多模态医学影像与文本增量与推理模型。
  ### 代码结构
