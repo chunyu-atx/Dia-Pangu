@@ -14,6 +14,7 @@ import csv
 import random
 import numpy as np
 from accelerate import init_empty_weights, load_checkpoint_and_dispatch, infer_auto_device_map
+import os
 
 
 def setup_seed(seed):
@@ -44,6 +45,11 @@ class DataArguments:
 
 def main():
 
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+
+    device = torch.device(f"npu:{local_rank}")
+    torch.npu.set_device(device)
+
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments))
     model_args, data_args = parser.parse_args_into_dataclasses()
@@ -70,19 +76,18 @@ def main():
         text_tokenizer_path=model_args.tokenizer_path,
         lang_model_path=model_args.lang_encoder_path,
     )
+
     ckpt = torch.load(
-        '/media/t1/zcy/dia-pangu/checkpoint_new/dia-pangu_v1208/pytorch_model.bin', map_location='npu')
+        '/media/t1/zcy/dia-pangu/checkpoint_new/dia-pangu_v0112/pytorch_model.bin', map_location=device)
     model.load_state_dict(ckpt, strict=True)
 
     model = model.half()
-    # model = model.cuda()
-    device = torch.device("npu")
-    torch.npu.set_device(0)
     model.to(device)
 
     print("load ckpt")
 
     model.eval()
+
     with open('/media/t1/zcy/dia-pangu/results/' + 'dia-pangu'+'.csv', mode='w') as outfile:
         writer = csv.writer(outfile)
         writer.writerow(
@@ -95,7 +100,7 @@ def main():
             cls_labels = sample['cls_labels'][0]
             belong_to = sample['belong_to'][0]
 
-            vision_x = sample["vision_x"].to('npu').half()
+            vision_x = sample["vision_x"].to(device).half()
 
             answer = sample['answer'][0]
             
@@ -106,7 +111,7 @@ def main():
 
             writer.writerow([image_id, question, answer, pred, cls_labels])
 
-            
+
 
 if __name__ == "__main__":
     main()

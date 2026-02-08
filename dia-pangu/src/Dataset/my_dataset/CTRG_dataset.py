@@ -165,7 +165,9 @@ class CTRG_Dataset(Dataset):
                 state = '不存在'
                 prompt += f"\"{disease}\" ： {state}。 "
 
-        guide = "请结合以上CT影像以及给出的关键病症信息，生成一份完整的中文医学影像诊断报告。报告需要详细描述影像所见的解剖结构，并指出任何存在的异常情况。 "
+        # guide = "请结合以上CT影像以及给出的关键病症信息，生成一份完整的中文医学影像诊断报告。报告需要详细描述影像所见的解剖结构，并指出任何存在的异常情况。 "
+        # 上述复杂的guide效果不好，换用下面的新的更简单的guide
+        guide = "影像所见："
         question = prompt + guide
 
         image_dict = {

@@ -70,18 +70,24 @@ class MultiPanguForCausalLM(nn.Module):
         self.lang_model = self.lang_model.half()
 
         # use lora to wrap the model
-        # peft_config = LoraConfig(
-        #     task_type="CAUSAL_LM", inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1
-        # )
-        # self.lang_model = get_peft_model(self.lang_model, peft_config)
-        # self.lang_model.print_trainable_parameters()
+        lora_config = LoraConfig(
+            r=4,  # LoRA的“秩”，8或16是常用且高效的选择
+            lora_alpha=16,  # LoRA的缩放因子，通常是r的两倍或四倍
+            target_modules=["q_proj", "v_proj"],  # 核心：指定要注入LoRA的模块
+            lora_dropout=0.1,
+            bias="none",
+            task_type="CAUSAL_LM"
+        )
+
+        self.lang_model = get_peft_model(self.lang_model, lora_config)
+
+        print("Trainable parameters after applying LoRA:")
+        self.lang_model.print_trainable_parameters()
+
+        
 
         self.lang_model.gradient_checkpointing_enable()
         self.lang_model.enable_input_require_grads()
-        # self.lang_model.requires_grad_(False)
-        # # frozen the lang model
-        # for param in self.lang_model.parameters():
-        #     param.requires_grad = False
 
         self.embedding_layer = MyEmbedding()
         self.embedding_layer.weight = self.lang_model.get_input_embeddings().weight
