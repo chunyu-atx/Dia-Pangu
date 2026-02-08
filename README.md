@@ -1,7 +1,9 @@
 ## Dia-Pangu
 基于盘古大模型多模态医学影像与文本增量与推理项目
 ### 模型结构
-![Project structure diagram](Fig/project-structure-diagram.png)
+
+![Project-structure-diagram](Fig/project-structure-diagram.png)
+
 本模型的LLM部分使用开源的openpangu_7b，Diagnostic Text Generation部分采用[Dia-LLaMA](https://github.com/zhi-xuan-chen/Dia-LLaMA)开源的模型，数据集采用开源数据集[CTRG](https://github.com/tangyuhao2016/CTRG)中的CTRG-Chest-548K部分。本项目主要以openpangu_7b为核心，融合Dia-LLaMA的方法从而构建基于盘古大模型多模态医学影像与文本增量与推理模型。
  ### 代码结构
  #### 模型的核心实现代码放在/dia-pangu/src文件夹中,核心部分由以下文件构成：
@@ -54,7 +56,7 @@ sh scripts/train_ft.sh
 sh scripts/test.sh
 ```
 
-在训练和推理过程中，请注意调整test.py/train_ft.py/train_pre.py中的模型路径并且中英文的根据需要改变数据集的头文件调用
+在训练和推理过程中，请注意调整test.py/train_ft.py/train_pre.py中的模型路径并且中英文的根据需要改变数据集的头文件调用:
 ```bash
 from Dataset.dataset_test import dataset_test
 ```
