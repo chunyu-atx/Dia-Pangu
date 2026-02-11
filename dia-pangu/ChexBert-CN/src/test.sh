@@ -1,0 +1,1 @@
+python test.py --ann_path /media/t1/zcy/dia-pangu/src/Dataset/my_dataset/annotation.json --label_path /media/t1/zcy/dia-pangu/src/Dataset/my_dataset/CTRG_finding_labels.csv --checkpoint ../ckpt/model_epoch8_iter200
