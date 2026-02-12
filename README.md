@@ -88,6 +88,7 @@ from Dataset.dataset_test import dataset_test
 
 需要注意的是，METEOR指标是针对英文文本的，因此中文结果指标较差。ChexBert原本也只是针对英文，由我们对有限的数据集CTRG-Chest-548K进行重训练以得到ChexBert-CN，不同的训练方法以及数据集得到的结果不同。
  
+
 ## Dia-Pangu-pruning
 以基于盘古大模型多模态医学影像与文本增量与推理项目作为验证指标的pangu剪枝技术研究，对pangu大语言模型尝试了不同剪枝率的剪枝
 ### 代码结构
@@ -95,11 +96,121 @@ from Dataset.dataset_test import dataset_test
 #### 敏感性分析工具代码位于/dia-pangu-pruning/sensitivity-analyse中，核心代码包括：
 layer_mask.py为层屏蔽工具，通过将特定投影层（Q/K/V）的输出置零，动态屏蔽 Transformer 各注意力层。
 
-layer_sensitivity_scan.py为实际敏感性分析工具，功能如下：
-1.建立基线：在未修改模型的情况下，记录所有测试提示词的输出 logits
-
-2.逐层屏蔽：依次屏蔽每一层的注意力机制（Q/V 或仅 V）
-
-3.计算偏差：使用 log-probability distance 度量屏蔽前后输出的差异
-
+layer_sensitivity_scan.py为实际敏感性分析工具，功能如下：\
+1.建立基线：在未修改模型的情况下，记录所有测试提示词的输出 logits\
+2.逐层屏蔽：依次屏蔽每一层的注意力机制（Q/V 或仅 V）\
+3.计算偏差：使用 log-probability distance 度量屏蔽前后输出的差异\
 4.生成报告-csv格式结果：输出每层的平均敏感度分数和标准差
+
+#### 实际剪枝工具代码位于/dia-pangu-pruning/pruning-tools中，核心代码包括：
+prune_llm_only_and_merge_CN_cli.py和prune_llm_only_and_merge_EN_cli.py，分别是对中文和英文模型的按层剪枝。代码会读取dia-pangu得到的微调后模型bin格式ckpt，自动推断或读取 LLM部分中的LoRA 配置，生成剪枝后的 LLM 权重，并将其合并回原 checkpoint，同时清理多余高层，输出权重与剪枝映射信息，便于复现与后续加载\
+inspect_ckpt.py为识别bin格式模型ckpt的各个层keys命名方式的工具，在加载出错时可以使用\
+count_params.py为计算大模型参数量的工具
+
+#### 剪枝后的微调以及推理测试代码位于/dia-pangu-pruning/after-pruing-tools中，包括：
+train_pruned_CN_cli.py/train_pruned_EN_cli.py分别为对中文和英文模型的剪枝后微调代码，加载剪枝后的合并权重与剪枝映射，按指定 drop_layers 重建裁剪后的模型并应用 LoRA 配置进行继续训练。\
+test_pruned_CN_cli.py/test_pruned_EN_cli.py分别为对中文和英文模型的剪枝后微调后的推理测试代码，在 NPU 上加载剪枝后微调模型（自动或手动推断 LoRA 配置），对测试集逐样本推理并保存预测结果与性能统计，最终输出结果表\
+此外，和dia-pangu项目中代码相比，此处略微修改了multimodality_model.py，分别改为用于剪枝后微调的multimodality_model_pruned_v0.py和用于剪枝后微调后测试的multimodality_model_pruned_v1.py\
+上述代码本质上与前述dia-pangu项目中的微调和测试一致，使用时请配合/dia-pangu/src中工具使用
+
+### 使用方法
+#### 环境准备
+敏感性分析以及剪枝后的微调，推理测试使用的环境与dia-pangu中的环境相同\
+实施剪枝时的环境略微不同，主要使用CANN的Msmodelslim作为剪枝工具，使用的是其[“Transformer类模型权重剪枝调优”](https://gitee.com/ascend/msit/tree/master/msmodelslim/msmodelslim/pytorch/prune/transformer_prune)功能，因此环境也是按照Msmodelslim要求配置。\
+**需要注意的是，本项目使用的CANN版本为8.1RC，pytorch版本为2.1.0与目前的msmodelslim工具在2026年1月的更新要求有所不同，使用过程中如果出现版本不匹配请以当前官网方法为准**
+
+#### 实施敏感性分析
+可以使用如下命令行进行敏感性分析。
+````bash
+# 使用 QV 模式（同时屏蔽 Query 和 Value）并指定输出文件
+python layer_sensitivity_scan.py --mode qv --out my_results.csv
+````
+当前敏感性分析代码中用于计算敏感性的测试提示词较少，可以按需补充
+
+#### 实施剪枝
+以对中文模型剪枝为例。通过如下方式指定之前训练好的dia-pangu的ckpt路径，Pangu-7B的原始LLM部分路径，剪枝后模型输出路径，以及要剪枝的层数即可进行剪枝
+````bash
+python prune_llm_only_and_merge_CN_cli.py \
+  --ckpt /media/t1/zcy/dia-pangu/checkpoint_new/dia-pangu_v0112/pytorch_model.bin \
+  --lang-model-path /media/t1/zcy/openPangu_Embedded_7B_V1_1 \
+  --out-dir /media/t1/sym/workspace_prune_new/output \
+  --drop-layers 23-28
+````
+目前的剪枝在CPU上进行，剪枝后产物包括：
+````bash
+# 合并后的完整权重
+pytorch_model_pruned_{pruned_layers}_merged_clean_CN_cpu.bin
+# LLM-only 剪枝权重
+llm_only_pruned_state_{pruned_layers}_CN_cpu.bin
+# 剪枝map
+prune_layer_map_{pruned_layers}_CN_cpu.json
+````
+对英文模型的剪枝方法与此相同，使用时注意更改对应路径
+
+#### 剪枝后的微调以及推理测试
+**进行剪枝后的微调以及推理测试时请把/dia-pangu-pruning/after-pruing-tools中test_与train_前缀代码放在/dia-pangu/src中，把/dia-pangu-pruning/after-pruing-tools中multimodality_model_前缀代码放在/dia-pangu/src/Model中使用。**\
+**当前test/train代码中Pangu-7B的原始LLM部分路径固定为了/media/t1/zcy/openPangu_Embedded_7B_V1_1，使用时注意修改**\
+对中文模型，剪枝后微调代码使用时需要在命令行规定剪枝后模型路径，剪枝map路径，剪枝后微调后模型输出路径以及微调参数，下面是一个示例：
+````bash
+python train_pruned_CN_cli.py \
+  --pruned_merged_ckpt /media/t1/sym/workspace_prune_new/output/pytorch_model_pruned_drop23_28_merged_clean_v0112_cpu.bin \
+  --prune_map /media/t1/sym/workspace_prune_new/output/prune_layer_map_drop23_28_v0112_cpu.json \
+  --out_root /media/t1/sym/workspace_prune_new \
+  --num_train_epochs 3
+````
+对英文模型，使用方法类似，示例如下：
+````bash 
+python train_pruned_EN_cli.py \
+  --pruned_model_path "/media/t1/sym/workspace_prune_new/output/pytorch_model_pruned_drop23_28_merged_clean_v0112_en_cpu.bin" \
+  --prune_map_path "/media/t1/sym/workspace_prune_new/output/prune_layer_map_drop23_28_v0112_en_cpu.json" \
+  --out_root "/media/t1/sym/workspace_prune_new/EN" \
+  --lora_r 4 \
+  --lora_alpha 8 \
+  --lora_dropout 0.2 \
+  --lora_target_modules "q_proj,v_proj" \
+  --num_train_epochs 5 \
+  --gradient_accumulation_steps 8 \
+  --save_strategy "steps" \
+  --save_steps 1000 \
+  --save_total_limit 3 \
+  --learning_rate 5e-5 \
+  --weight_decay 0.0 \
+  --warmup_steps 20 \
+  --lr_scheduler_type "constant_with_warmup"
+````
+当前剪枝后微调代码会在规定的输出文件夹下得到以下产物：
+````bash
+#bin格式微调后权重:
+pytorch_model.bin
+#训练耗时统计：
+timing.json
+#元信息目录，包括lora_meta.json等：
+meta/
+````
+
+测试代码使用时需给出剪枝并微调后的模型权重路径，对应的剪枝map路径，测试结果输出路径以及要使用的npu卡号（单卡运行），对英文的使用示例如下：
+````bash
+python test_pruned_EN_cli.py \
+  --pruned_model_path "/media/t1/sym/workspace_prune_new/EN/ft_out_v0112_drop23_28" \
+  --prune_map_path "/media/t1/sym/workspace_prune_new/output/prune_layer_map_drop23_28_v0112_en_cpu.json" \
+  --out_dir "/media/t1/sym/dia-pangu/results/results_EN" \
+  --npu_id 0
+  ````
+  对中文的使用方法类似，如下：
+````bash
+python test_pruned_v0112_cli.py \
+  --ckpt_path /media/t1/sym/workspace_prune_new/ft_out_v0112_drop17_33/pytorch_model.bin \
+  --prune_map /media/t1/sym/workspace_prune_new/output/prune_layer_map_drop17_33_v0112_cpu.json \
+  --out_dir /media/t1/sym/dia-pangu/results/
+  --npu_id 0
+````
+当前测试代码会得到结果csv以及逐样本耗时csv，示例如下：
+````
+dia-pangu_v1219_ft_c23_28.csv
+dia-pangu_v1219_ft_c23_28_per_sample_timing.csv
+````
+需要注意的是，目前得到的结果csv可能出现’Pred‘列中出现意外空格或者中文格式保存非utf-8的问题，可以使用after-pruning-tools中的clean.sh进行格式修改
+
+#### 结果评估方法与前述dia-pangu项目中相同
+
+
