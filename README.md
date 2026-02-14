@@ -90,7 +90,8 @@ from Dataset.dataset_test import dataset_test
  
 
 ## Dia-Pangu-pruning
-以基于盘古大模型多模态医学影像与文本增量与推理项目作为验证指标的pangu剪枝技术研究，对pangu大语言模型尝试了不同剪枝率的剪枝
+![pruning-diagram](Fig/pruning-diagram.png)
+以基于盘古大模型多模态医学影像与文本增量与推理项目作为验证指标的pangu剪枝技术研究，如图所示，根据对层敏感性分析的结果对pangu大语言模型尝试了不同剪枝率的剪枝
 ### 代码结构
 剪枝部分包含敏感性分析，实际剪枝工具以及剪枝后测试工具
 #### 敏感性分析工具代码位于/dia-pangu-pruning/sensitivity-analyse中，核心代码包括：
